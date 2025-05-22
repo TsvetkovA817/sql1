@@ -3,7 +3,7 @@ import os
 
 
 class ConfigHandler:
-    def __init__(self, config_file = 'config.ini'):
+    def __init__(self, config_file='config.ini'):
         self.config = configparser.ConfigParser()
         self.config_file = config_file
         # Создаем файл конфигурации, если он не существует
@@ -69,14 +69,14 @@ class ConfigHandler:
     def get_bot_set(self):
         """Возвращает настройки бота"""
         return {
-            'key': self.config.get('Bot','key', fallback=None),
-            'name': self.config.get('Bot','name', fallback=None)
+            'key': self.config.get('Bot', 'key', fallback=None),
+            'name': self.config.get('Bot', 'name', fallback=None)
         }
 
     def update_bot_set(self, key, name):
         if not self.config.has_section('Bot'):
             self.config.add_section('Bot')
-        self.config.set('Bot','key', key)
+        self.config.set('Bot', 'key', key)
         self.config.set('Bot', 'name', name)
         with open(self.config_file, 'w') as cf:
             self.config.write(cf)

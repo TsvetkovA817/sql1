@@ -24,14 +24,12 @@
     "menu_file_open": "打开",
     "menu_file_delete": "删除",
     "menu_file_exit": "退出",
-
     "menu_data_lessons": "课程",
     "menu_data_phrases": "短语",
      "menu_data_users": "用户",
     "menu_bot_start": "启动",
     "menu_bot_stop": "停止",
     "menu_bot_status": "状态",
-
     "menu_data_clients": "客户",
     "menu_data_add": "添加客户",
     "menu_data_edit": "编辑客户",
@@ -42,8 +40,6 @@
     "welcome_message": "欢迎!",
     "app_description": "PostgreSQL 客户数据库管理",
     "current_db_status": "当前数据库: {dbname}",
-
-
     "bot_add_word": "添加单词",
     "bot_delete_word": "删除单词",
     "bot_next": "下一步",
@@ -78,9 +74,10 @@
     "lesson_not_found": "未找到课程。",
     "now_learning": "您现在正在学习：",
     "select_from_list": "请从列表中选择。",
-
-
     "lang_ru": "俄语",
     "lang_en": "英语",
-    "lang_zh": "中文"
+    "lang_zh": "中文",
+    "invalid_lesson_format": "课程格式无效。请从列表中选择",
+    "db_error": "数据库错误"
+
 }

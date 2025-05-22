@@ -94,7 +94,7 @@ class PhrasesManagementWindow:
         for item in self.tree.get_children():
             self.tree.delete(item)
 
-        phrases = self.crud.get_all_phrases()  #  метод в CRUDOperations
+        phrases = self.crud.get_all_phrases()  # метод в CRUDOperations
 
         for phrase in phrases:
             self.tree.insert("", tk.END, values=(
@@ -262,8 +262,8 @@ class PhrasesManagementWindow:
 
         try:
             # TODO: В CRUD  нет delete_phrase
-            #self.crud.delete_phrase(phrase_id)
-            #messagebox.showinfo("Успех", "Фраза успешно удалена")
+            # self.crud.delete_phrase(phrase_id)
+            # messagebox.showinfo("Успех", "Фраза успешно удалена")
             messagebox.showinfo("Успех", "Нажата кн удаления фразы")
             self.load_phrases()
         except Exception as e:

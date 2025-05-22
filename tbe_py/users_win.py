@@ -93,7 +93,7 @@ class UsersManagementWindow:
         for item in self.tree.get_children():
             self.tree.delete(item)
 
-        users = self.crud.get_all_users()  #  метод в CRUDOperations ok
+        users = self.crud.get_all_users()  # метод в CRUDOperations ok
 
         for user in users:
             self.tree.insert("", tk.END, values=(
@@ -127,7 +127,7 @@ class UsersManagementWindow:
             return
 
         user_id = self.tree.item(selected[0], "values")[0]
-        user = self.crud.get_user_by_id(user_id)  #  метод в CRUDOperations
+        user = self.crud.get_user_by_id(user_id)  # метод в CRUDOperations
 
         if not user:
             messagebox.showerror("Ошибка", "Пользователь не найден")
@@ -207,7 +207,7 @@ class UsersManagementWindow:
                 #     ui_language=ui_language,
                 #     target_language=target_language
                 # )
-                #messagebox.showinfo("Успех", "Пользователь успешно обновлен")
+                # messagebox.showinfo("Успех", "Пользователь успешно обновлен")
                 messagebox.showinfo("Успех", "Нажата кнопка обновления")
             else:  # Добавление
                 user = self.crud.create_user(

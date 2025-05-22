@@ -5,7 +5,7 @@ from db_handler import CRUDOperations
 
 class LessonsManagementWindow:
     def __init__(self, parent, db_url):
-        self.master = parent # win
+        self.master = parent  # win
         self.crud = CRUDOperations(db_url)
 
         self.setup_ui()

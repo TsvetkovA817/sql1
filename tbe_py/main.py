@@ -7,9 +7,8 @@ from db_handler import DBSession, CRUDOperations
 from users_win import UsersManagementWindow
 from lessons_window import LessonsManagementWindow
 from phrases_win import PhrasesManagementWindow
+from bot import LanguageBot
 
-#from dic_window import DicManagementWindow
-from  bot import LanguageBot
 
 class MainApp:
     def __init__(self, root):
@@ -25,10 +24,6 @@ class MainApp:
         self.language_bot = None
 
         # Инициализация
-        #self.db = DBSession("postgresql://postgres:5432@localhost/postgres")
-        #self.db = DBSession(dbname = "postgres", host = "127.0.0.1", user = "postgres", password = "****", port = 5432)
-        #self.crud = CRUDOperations(self.db)
-
         self.root = root
         self.lang = LanguageHandler()
         print('winfo_screenwidth()=', root.winfo_screenwidth())
@@ -36,15 +31,15 @@ class MainApp:
         print('winfo_screenheight()=', root.winfo_screenheight())
         print('winfo_reqheight()=', root.winfo_reqheight())
 
-        x= root.winfo_screenwidth() // 2
-        y = root.winfo_screenheight()//2
+        x = root.winfo_screenwidth() // 2
+        y = root.winfo_screenheight() // 2
 
         w = 600
         h = 400
 
-        self.root.geometry(f"{w}x{h}+{x-w//2}+{y-h//2}")
+        self.root.geometry(f"{w}x{h}+{x - w // 2}+{y - h // 2}")
         self._connect_to_db(self.db_config)
-        #elf.db_url = self._get_db_url()
+        # elf.db_url = self._get_db_url()
 
         self.botkey = self.config.get_bot_set()['key']
         # Создаем экземпляр бота
@@ -54,7 +49,6 @@ class MainApp:
         self.language_bot = LanguageBot(self.botkey, self.db_url)
 
         self._init_ui()
-
 
     # def _get_db_url(self):
     #     self.db_url = self.db.db_url
@@ -71,7 +65,7 @@ class MainApp:
                     self.status_label.config(text="Не подключено к БД", fg="red")
             else:
                 self.crud = CRUDOperations(self.db.db_url)
-                #self.db_connection = self.db.conn
+                # self.db_connection = self.db.conn
                 if hasattr(self, 'status_label'):
                     self.status_label.config(text=f"Подключено к БД: {db_config['dbname']}", fg="green")
                 return True
@@ -88,10 +82,10 @@ class MainApp:
             if not isinstance(widget, tk.Menu):
                 widget.destroy()
         print(self.lang.current_lang)
-        self.root.title(self.lang.get_text("app_title")+" / TsvetkovAV v.1")
+        self.root.title(self.lang.get_text("app_title") + " / TsvetkovAV v.1")
 
         # Создаем главное меню
-        #self.menu_bar = tk.Menu(self.root)
+        # self.menu_bar = tk.Menu(self.root)
         self.root.geometry("800x600")
 
         # Основное содержимое окна
@@ -142,29 +136,28 @@ class MainApp:
         self.menu_bar = tk.Menu(self.root)
         # Меню Файл
         self.file_menu = tk.Menu(self.menu_bar, tearoff=0)
-        self.file_menu.add_command(label=self.lang.get_text("menu_file_create"), command = self.create_file)
-        self.file_menu.add_command(label = self.lang.get_text("menu_file_existdb"), command = self.exist_file)
-        self.file_menu.add_command(label = self.lang.get_text("menu_file_open"), command = self.open_file)
-        self.file_menu.add_command(label = self.lang.get_text("menu_file_delete"), command = self.del_file)
+        self.file_menu.add_command(label=self.lang.get_text("menu_file_create"), command=self.create_file)
+        self.file_menu.add_command(label=self.lang.get_text("menu_file_existdb"), command=self.exist_file)
+        self.file_menu.add_command(label=self.lang.get_text("menu_file_open"), command=self.open_file)
+        self.file_menu.add_command(label=self.lang.get_text("menu_file_delete"), command=self.del_file)
         self.file_menu.add_separator()
-        self.file_menu.add_command(label=self.lang.get_text("menu_file_create_tables"), command = self.create_tables)
-        self.file_menu.add_command(label=self.lang.get_text("menu_file_drop_tables"), command = self.drop_tables)
+        self.file_menu.add_command(label=self.lang.get_text("menu_file_create_tables"), command=self.create_tables)
+        self.file_menu.add_command(label=self.lang.get_text("menu_file_drop_tables"), command=self.drop_tables)
         self.file_menu.add_separator()
-        self.file_menu.add_command(label = self.lang.get_text("menu_file_exit"), command = self.exit_app)
+        self.file_menu.add_command(label=self.lang.get_text("menu_file_exit"), command=self.exit_app)
 
         self.bot_menu = tk.Menu(self.menu_bar, tearoff=0)
-        self.bot_menu.add_command(label=self.lang.get_text("menu_bot_start"), command = self.start_bot)
-        self.bot_menu.add_command(label = self.lang.get_text("menu_bot_stop"), command = self.stop_bot)
-        self.bot_menu.add_command(label = self.lang.get_text("menu_bot_status"), command = self.status_bot)
+        self.bot_menu.add_command(label=self.lang.get_text("menu_bot_start"), command=self.start_bot)
+        self.bot_menu.add_command(label=self.lang.get_text("menu_bot_stop"), command=self.stop_bot)
+        self.bot_menu.add_command(label=self.lang.get_text("menu_bot_status"), command=self.status_bot)
 
-        self.data_menu = tk.Menu(self.menu_bar, tearoff=0)   # Меню "Данные"
+        self.data_menu = tk.Menu(self.menu_bar, tearoff=0)  # Меню "Данные"
         self.data_menu.add_command(label=self.lang.get_text("menu_data_lessons"), command=self.show_lessons_window)
         self.data_menu.add_command(label=self.lang.get_text("menu_data_users"), command=self.show_users_window)
         self.data_menu.add_command(label=self.lang.get_text("menu_data_phrases"), command=self.show_phrases_window)
 
-        self.help_menu = tk.Menu(self.menu_bar, tearoff =0)
-        self.help_menu.add_command(label = self.lang.get_text("menu_help_about"), command = self.about_prog)
-
+        self.help_menu = tk.Menu(self.menu_bar, tearoff=0)
+        self.help_menu.add_command(label=self.lang.get_text("menu_help_about"), command=self.about_prog)
 
         # Меню Настройки с подменю Язык
         self.settings_menu = tk.Menu(self.menu_bar, tearoff=0)
@@ -182,13 +175,13 @@ class MainApp:
             menu=self.lang_menu
         )
 
-        self.menu_bar.add_cascade(label = self.lang.get_text("menu_file"), menu = self.file_menu)
+        self.menu_bar.add_cascade(label=self.lang.get_text("menu_file"), menu=self.file_menu)
         self.menu_bar.add_cascade(label=self.lang.get_text("menu_data"), menu=self.data_menu)
         self.menu_bar.add_cascade(label=self.lang.get_text("menu_bot"), menu=self.bot_menu)
         self.menu_bar.add_cascade(label=self.lang.get_text("menu_settings"), menu=self.settings_menu)
-        self.menu_bar.add_cascade(label = self.lang.get_text("menu_help"), menu = self.help_menu)
+        self.menu_bar.add_cascade(label=self.lang.get_text("menu_help"), menu=self.help_menu)
 
-        self.root.config(menu = self.menu_bar)
+        self.root.config(menu=self.menu_bar)
 
         # self.label1 = tk.Label(root, text="Hello world", font=('Arial', 14))
         # self.label1.pack(pady=50)
@@ -236,14 +229,13 @@ class MainApp:
         # Переинициализируем интерфейс
         self._init_ui()
 
-
     def create_file(self):
         """Создание новой базы данных с использованием класса ClientsDb"""
         db_name = simpledialog.askstring("Создание БД", "Введите имя новой базы данных:")
         if db_name:
             try:
                 # Создаем временное подключение для создания БД
-                if  self.session:
+                if self.session:
                     self.db.close()
                 if self.db:
                     del self.db
@@ -257,7 +249,7 @@ class MainApp:
 
                     # Подключаемся к новой БД
                     self.db = DBSession(dbname=db_name)
-                    #self.db_connection = self.db.conn
+                    # self.db_connection = self.db.conn
                     self.status_label.config(text=f"Подключено к БД: {db_name}", fg="green")
                 else:
                     messagebox.showerror("Ошибка", "Не удалось создать базу данных")
@@ -282,7 +274,6 @@ class MainApp:
             except Exception as e:
                 messagebox.showerror("Ошибка", f"Не удалось открыть базу данных:\n{e}")
 
-
     def open_file(self):
         """Подключение к существующей базе данных"""
         db_name = simpledialog.askstring("Открытие БД", "Введите имя базы данных для подключения:")
@@ -297,9 +288,9 @@ class MainApp:
                 self.db = DBSession(dbname=db_name)
 
                 # Проверяем существование таблиц
-                #cursor = self.db_connection.cursor()
-                #cursor.execute("SELECT EXISTS(SELECT * FROM information_schema.tables WHERE table_name='clients');")
-                #if not cursor.fetchone()[0]:
+                # cursor = self.db_connection.cursor()
+                # cursor.execute("SELECT EXISTS(SELECT * FROM information_schema.tables WHERE table_name='clients');")
+                # if not cursor.fetchone()[0]:
                 #    messagebox.showwarning("Предупреждение", "В базе данных отсутствуют необходимые таблицы!")
 
                 self.status_label.config(text=f"Подключено к БД: {db_name}", fg="green")
@@ -310,13 +301,12 @@ class MainApp:
                 self.status_label.config(text="Не подключено к БД", fg="red")
                 messagebox.showerror("Ошибка", f"Не удалось подключиться к базе данных:\n{e}")
 
-
     def del_file(self):
         """Удаление базы данных"""
         db_name = simpledialog.askstring("Удаление БД", "Введите имя базы данных для удаления:")
         if db_name:
             if messagebox.askyesno("Подтверждение",
-                                   f"Вы уверены, что хотите удалить базу данных {db_name}?\nЭто действие нельзя отменить!"):
+                                   f"Вы уверены, что хотите удалить базу данных {db_name}?\n Это действие нельзя отменить!"):
                 try:
                     # Создаем временное подключение для удаления БД
                     temp_db = DBSession()
@@ -339,10 +329,9 @@ class MainApp:
                     if 'temp_db' in locals():
                         del temp_db
 
-
     def exit_app(self):
         """Выход из приложения"""
-        # askokcancel - кнопки не lang, доработать
+        # askokcancel - кнопки не lang, изменить
         if messagebox.askokcancel(self.lang.get_text("menu_file_exit"), self.lang.get_text("confirm_exit")):
             if self.db:
                 self.db.close()
@@ -352,19 +341,24 @@ class MainApp:
     def create_tables(self):
         """Создание всех таблиц по моделям"""
         # askokcancel - кнопки не lang, изменить
-        if messagebox.askokcancel(self.lang.get_text("menu_file_create_tables"), self.lang.get_text("menu_file_create_tables")):
+        if messagebox.askokcancel(self.lang.get_text("menu_file_create_tables"),
+                                  self.lang.get_text("menu_file_create_tables")):
             self.db.create_tables()
 
     def drop_tables(self):
         """Удаление всех таблиц по моделям"""
         # askokcancel - кнопки не lang, изменить
-        if messagebox.askokcancel(self.lang.get_text("menu_file_drop_tables"), self.lang.get_text("menu_file_drop_tables")):
+        if messagebox.askokcancel(self.lang.get_text("menu_file_drop_tables"),
+                                  self.lang.get_text("menu_file_drop_tables")):
             self.db.drop_tables()
 
     # def show_publishers_window2(self):
     #     #db = DBSession(**self.db_config)
     #     #crud = CRUDOperations(db)
     #     publishers_window = PublishersWindow(root, self.crud)
+    #
+    # def show_shops_window(self):
+    #     ShopsWindow(root, self.crud)
     #
     # def show_books_window(self):
     #     BooksWindow(root, self.crud)
@@ -390,6 +384,9 @@ class MainApp:
         users_window = tk.Toplevel(self.root)
         PhrasesManagementWindow(users_window, db.db_url, main_window_pos)
 
+    # def show_dic_window(self):
+    #     DicManagementWindow(root, self.crud)
+
     def start_bot(self):
         result = self.language_bot.start_bot()
         print(result)
@@ -402,7 +399,6 @@ class MainApp:
         status = self.language_bot.get_bot_status()
         print(status)
 
-
     def about_prog(self):
         about_window = tk.Toplevel(self.root)
         about_window.title("О программе")
@@ -412,7 +408,8 @@ class MainApp:
         about_window.geometry("300x200")
         about_window.geometry(f"+{parent_x + 50}+{parent_y + 50}")  # Смещение на 50 пикселей вправо и вниз
 
-        tk.Label(about_window, text="Менеджер базы данных тбота TBLE\nВерсия 1.0 TsvetkovAV\n\nPostgreSQL TBLearnEng\n© 2025",
+        tk.Label(about_window,
+                 text="Менеджер базы данных тбота TBLE\nВерсия 1.0 TsvetkovAV\n\nPostgreSQL TBLearnEng\n© 2025",
                  font=('Arial', 12)).pack(pady=20)
         tk.Button(about_window, text="Закрыть",
                   command=about_window.destroy).pack(pady=10)
@@ -518,11 +515,12 @@ class MainApp:
     def __del__(self):
         pass
 
+
 def print_hi(name):
-    print(f'Hi, {name}')  # тест
+    print(f'Hi, {name}')  #
 
 
-if __name__ =='__main__':
+if __name__ == '__main__':
     root = tk.Tk()
     app = MainApp(root)
     root.mainloop()

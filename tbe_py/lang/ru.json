@@ -19,14 +19,12 @@
     "menu_file_open": "Открыть",
     "menu_file_delete": "Удалить",
     "menu_file_exit": "Выход",
-
     "menu_data_lessons": "Уроки",
     "menu_data_phrases": "Фразы",
      "menu_data_users": "Пользователи",
     "menu_bot_start": "Старт",
     "menu_bot_stop": "Стоп",
     "menu_bot_status": "Стaтус",
-
     "menu_data_sale": "---",
     "menu_data_add": "Добавить клиента",
     "menu_data_edit": "Редактировать клиента",
@@ -35,10 +33,8 @@
 	"menu_settings_param": "Параметры",
     "menu_help_about": "О программе",
     "welcome_message": "Добро пожаловать!",
-
     "app_description": "Управление ботом Learning a foreign language PostgreSQL",
     "current_db_status": "Текущая база данных: {dbname}",
-
     "bot_add_word": "Добавить слово",
     "bot_delete_word": "Удалить слово",
     "bot_next": "Дальше",
@@ -73,8 +69,10 @@
     "lesson_not_found": "Урок не найден.",
     "now_learning": "Теперь вы изучаете:",
     "select_from_list": "Пожалуйста, выберите из списка.",
-
     "lang_ru": "Русский",
     "lang_en": "Английский",
-    "lang_zh": "Китайский"
+    "lang_zh": "Китайский",
+    "invalid_lesson_format": "Некорректный формат урока. Выберите урок из списка",
+    "db_error": "Ошибка базы данных"
+
 }

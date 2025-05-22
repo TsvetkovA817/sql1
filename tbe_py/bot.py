@@ -7,46 +7,76 @@ from telebot.storage import StateMemoryStorage
 from telebot.handler_backends import State, StatesGroup
 from sqlalchemy import func
 from datetime import datetime, timezone
+from typing import Optional, Dict, List, Union, Tuple
 
 from db_handler import CRUDOperations
 from models import User, Phrase, UserWord, Lesson
 from language_handler import LanguageHandler
 
+# Логирование
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 
 class LanguageBot:
-    def __init__(self, token, db_url):
+    def __init__(self, token: str, db_url: str):
         self.token = token
         self.db_url = db_url
-        self.bot = None
-        self.polling_thread = None
+        self.bot: Optional[TeleBot] = None
+        self.polling_thread: Optional[threading.Thread] = None
         self.is_running = False
-
-        self.crud = CRUDOperations(db_url)
+        self.shutdown_event = threading.Event()
+        # self.crud = CRUDOperations(db_url)
         self.known_users = []
         self.user_steps = {}
         self.current_buttons = []
-        self.lang = LanguageHandler()
-        # self.ui_lang = self.lang.current_lang
-        self.Command = self._init_commands(ui_lang=self.lang.current_lang)
+        try:
+            self.crud = CRUDOperations(db_url)
+            self.lang = LanguageHandler()
+            self.Command = self._init_commands(ui_lang=self.lang.current_lang)  # Язык по умолчанию
+            self.user_cache: Dict[int, Dict] = {}  # Кэш данных пользователей
+            logger.info("LanguageBot Запустился успешно")
+        except Exception as e:
+            logger.error(f"LanguageBot Ошибка инициализации: {str(e)}")
+            raise
 
-        #self.bot = TeleBot(token, state_storage=StateMemoryStorage())
-        #self.setup_handlers()
-        #self.bot.add_custom_filter(custom_filters.StateFilter(self.bot))
+        # self.bot = TeleBot(token, state_storage=StateMemoryStorage())
+        # self.setup_handlers()
+        # self.bot.add_custom_filter(custom_filters.StateFilter(self.bot))
+
+    class MyStates(StatesGroup):
+        target_word = State()
+        translate_word = State()
+        another_words = State()
+        select_lesson = State()
+        select_target_language = State()
+        select_ui_language = State()
+        learning_mode = State()
 
     def start_bot(self):
         """Запускает бота в отдельном потоке"""
         if self.is_running:
-            return "Бот уже запущен"
+            msg1 = "Бот уже запущен"
+            logger.warning(msg1)
+            return msg1
+        msg2 = 'Бот успешно запущен'
+        try:
+            self.bot = TeleBot(self.token, state_storage=StateMemoryStorage())
+            self.setup_handlers()
+            self.bot.add_custom_filter(custom_filters.StateFilter(self.bot))
 
-        self.bot = TeleBot(self.token, state_storage=StateMemoryStorage())
-        self.setup_handlers()
-        self.bot.add_custom_filter(custom_filters.StateFilter(self.bot))
-
-        self.is_running = True
-        self.polling_thread = threading.Thread(target=self._start_polling)
-        self.polling_thread.start()
-
-        return "Бот успешно запущен"
+            self.is_running = True
+            self.shutdown_event.clear()
+            self.polling_thread = threading.Thread(target=self._start_polling)
+            self.polling_thread.start()
+            logger.info(msg2)
+            return msg2
+        except Exception as e:
+            logger.error(f"Ошибка при старте бота: {str(e)}")
+            return f"Ошибка при старте бота: {str(e)}"
 
     def _start_polling(self):
         """Внутренний метод для запуска polling в отдельном потоке"""
@@ -61,36 +91,33 @@ class LanguageBot:
                 else:
                     break
 
-    def stop_bot(self):
+    def stop_bot(self) -> str:
         """Останавливает работу бота"""
+        msg_bot_stopped = 'Бот уже остановлен'
+        msg_bot_ok_stopped = 'Бот успешно остановлен'
         if not self.is_running:
-            return "Бот уже остановлен"
+            logger.warning(msg_bot_stopped)
+            return msg_bot_stopped
         try:
+            self.is_running = False
+            self.shutdown_event.set()
             if self.bot:
-                self.bot.stop_polling()
+                try:
+                    self.bot.stop_polling()
+                except Exception as e:
+                    logger.error(f"Ошибка стоп бот polling: {str(e)}")
+            if self.polling_thread and self.polling_thread.is_alive():
+                self.polling_thread.join(timeout=5)
+            self.bot = None
+            logger.info(msg_bot_ok_stopped)
+            return msg_bot_ok_stopped
         except Exception as e:
-            self.logger.error(f"Ошибка при остановке polling: {e}")
-
-
-        if self.polling_thread and self.polling_thread.is_alive():
-            self.polling_thread.join(timeout=5)
-
-        self.is_running = False
-        self.bot = None
-        return "Бот успешно остановлен"
+            logger.error(f"Ошибка при остановке: {str(e)}")
+            return f"Ошибка: {str(e)}"
 
     def get_bot_status(self):
         """Возвращает статус бота"""
         return "Бот работает" if self.is_running else "Бот остановлен"
-
-    class MyStates(StatesGroup):
-        target_word = State()
-        translate_word = State()
-        another_words = State()
-        select_lesson = State()
-        select_target_language = State()
-        select_ui_language = State()
-        learning_mode = State()
 
     class Command:
         ADD_WORD = 'Добавить слово ➕'
@@ -101,27 +128,37 @@ class LanguageBot:
         SELECT_UI_LANG = 'Изменить язык интерфейса 🖥️'
         MAIN_MENU = 'Главное меню 🏠'
 
-    def _init_commands(self, ui_lang = 'ru'):
+    def _init_commands(self, ui_lang='ru'):
         """ Инициализирует кнопки с учетом текущего языка """
         cmd = self.Command
-        cmd.ADD_WORD = f'{self.lang.get_text("bot_add_word",lang=ui_lang)} ➕'
-        cmd.DELETE_WORD = f'{self.lang.get_text("bot_delete_word",lang=ui_lang)} 🔙'
-        cmd.NEXT = f'{self.lang.get_text("bot_next",lang=ui_lang)} ⏭'
-        cmd.SELECT_LESSON = f'{self.lang.get_text("bot_select_lesson",lang=ui_lang)} 📚'
-        cmd.SELECT_TARGET_LANG = f'{self.lang.get_text("bot_select_target_lang",lang=ui_lang)} 🌐'
-        cmd.SELECT_UI_LANG = f'{self.lang.get_text("bot_select_ui_lang",lang=ui_lang)} 🖥️'
-        cmd.MAIN_MENU = f'{self.lang.get_text("bot_main_menu",lang=ui_lang)} 🏠'
+        cmd.ADD_WORD = f'{self.lang.get_text("bot_add_word", lang=ui_lang)} ➕'
+        cmd.DELETE_WORD = f'{self.lang.get_text("bot_delete_word", lang=ui_lang)} 🔙'
+        cmd.NEXT = f'{self.lang.get_text("bot_next", lang=ui_lang)} ⏭'
+        cmd.SELECT_LESSON = f'{self.lang.get_text("bot_select_lesson", lang=ui_lang)} 📚'
+        cmd.SELECT_TARGET_LANG = f'{self.lang.get_text("bot_select_target_lang", lang=ui_lang)} 🌐'
+        cmd.SELECT_UI_LANG = f'{self.lang.get_text("bot_select_ui_lang", lang=ui_lang)} 🖥️'
+        cmd.MAIN_MENU = f'{self.lang.get_text("bot_main_menu", lang=ui_lang)} 🏠'
         return cmd
 
     def setup_handlers(self):
         """Настройка обработчиков команд"""
-        @self.bot.message_handler(commands=['start', 'menu'])
-        def handle_start(message):
-            self.show_main_menu(message)
+
+        @self.bot.message_handler(commands=['start', 'menu', 'help'])
+        def handle_start(message: types.Message) -> None:
+            try:
+                self.show_main_menu(message)
+            except Exception as e:
+                logger.error(f"Ошибка: {str(e)}")
+                self._send_error_message(message.chat.id)
 
         @self.bot.message_handler(func=lambda message: message.text == self.Command.NEXT)
-        def handle_next(message):
-            self.create_cards(message)
+        def handle_next(message: types.Message) -> None:
+            try:
+                # self.create_cards(message)
+                self.create_learning_card(message)
+            except Exception as e:
+                logger.error(f"Ошибка: {str(e)}")
+                self._send_error_message(message.chat.id)
 
         @self.bot.message_handler(func=lambda message: message.text == self.Command.DELETE_WORD)
         def handle_delete_word(message):
@@ -157,71 +194,127 @@ class LanguageBot:
 
             self.handle_user_response(message)
 
-    def show_main_menu(self, message):
+    def show_main_menu(self, message: types.Message) -> None:
         """Показывает главное меню с кнопками управления"""
-        cid = message.chat.id
-        user_id = message.from_user.id
-        lang = self.get_user_lang(user_id) # Получаем язык пользователя из БД
-        #self.ui_lang = lang
-        commands = self._init_commands(ui_lang=lang) # Создаем команды с нужным языком
+        try:
+            user_id = message.from_user.id
+            chat_id = message.chat.id
 
-        # Отправляем меню
-        markup = types.ReplyKeyboardMarkup(row_width=2)
-        status = self.get_bot_status()
+            # Получаем или создаем пользователя через CRUDOperations
+            user, error = self.crud.get_or_create_user(
+                telegram_id=str(user_id),
+                username=message.from_user.username,
+                ui_language='ru',
+                target_language='en'
+            )
 
-        buttons = [
-            types.KeyboardButton(commands.SELECT_LESSON),
-            types.KeyboardButton(commands.SELECT_TARGET_LANG),
-            types.KeyboardButton(commands.SELECT_UI_LANG),
-            types.KeyboardButton(commands.ADD_WORD),
-            types.KeyboardButton(commands.NEXT)
-        ]
+            if error or not user:
+                self._send_error_message(chat_id)
+                return
 
-        markup.add(*buttons)
+            # Обновляем кэш пользователя
+            self.user_cache[user_id] = {
+                'ui_language': user.ui_language,
+                'target_language': user.target_language,
+                'current_lesson_id': user.current_lesson_id
+            }
 
-        self.bot.send_message(
-            message.chat.id,
-            f"{status}\n{self.lang.get_text('bot_main_menu', lang=lang)}",
-            reply_markup=markup
-        )
+            # Получаем статистику пользователя через CRUDOperations
+            stats, error = self.crud.get_user_stats(user.id)
+            if error:
+                stats = {'word_count': 0, 'learned_words': 0}
 
-        with self.crud.Session() as session:
-            # нашли юзера
-            user = session.query(User).filter(User.telegram_id == str(cid)).first()
-            # не нашли
-            if not user:
-                user = User(
-                    telegram_id=str(cid),
-                    username=message.from_user.username,
-                    ui_language='ru',
-                    target_language='en',
-                    current_lesson_id=None  # Инициализируем текущий урок
-                )
-                session.add(user)
-                session.commit()
-                #welcome_msg = "Добро пожаловать! Я помогу вам изучать языки.\n Главное меню"
-                welcome_msg = f"{self.lang.get_text('bot_first_msg', lang=lang)}"
-            else:
-                welcome_msg = f"{self.lang.get_text('bot_welcome_msg', lang=lang)}"
+            # Формируем сообщение
+            welcome_msg = self._format_welcome_message(user, stats)
 
-            # Получаем информацию о текущем уроке
-            current_lesson = None
-            if user.current_lesson_id:
-                current_lesson = session.query(Lesson).filter(Lesson.id == user.current_lesson_id).first()
-
-            word_count = session.query(UserWord).filter(UserWord.user_id == user.id).count()
-            welcome_msg += f"\n\n{self.lang.get_text('bot_user_dict', lang=lang)} {word_count} {self.lang.get_text('words', lang=lang)}"
-            welcome_msg += f"\n{self.lang.get_text('target_language', lang=lang)} {user.target_language}"
-            if current_lesson:
-                welcome_msg += f"\n{self.lang.get_text('current_lesson', lang=lang)} {current_lesson.title}"
-            else:
-                welcome_msg += f"\n{self.lang.get_text('no_lesson_selected', lang=lang)}"
-            # отсылаем стартовое сообщение
+            # Отправляем меню
             self.bot.send_message(
-                cid,
+                chat_id,
                 welcome_msg,
+                reply_markup=self._get_main_menu_markup(user.ui_language)
+            )
+        except Exception as e:
+            logger.error(f"Error in show_main_menu: {str(e)}")
+            self._send_error_message(message.chat.id)
+
+    def create_learning_card(self, message: types.Message, chat_id: int = 0, user_id: int = 0) -> None:
+        """Создает карточку для изучения слов"""
+        try:
+            user_id = message.from_user.id
+            chat_id = message.chat.id
+            lang = self._get_user_lang_from_cache(user_id) or 'ru'
+
+            # Получаем пользователя
+            user, error = self.crud.get_user_by_telegram_id(str(user_id))
+            if error or not user:
+                self._send_error_message(chat_id)
+                return
+
+            # Получаем данные для обучения
+            learning_data, error = self.crud.get_learning_data(
+                user_id=user.id,
+                lesson_id=user.current_lesson_id
+            )
+
+            if error or not learning_data:
+                error_msg = self.lang.get_text(
+                    'no_words_to_learn' if not learning_data else 'database_error',
+                    lang=lang
+                )
+                self.bot.send_message(chat_id, error_msg)
+                return
+
+            # Получаем данные фразы
+            current_phrase = learning_data['current_phrase']
+            other_phrases = learning_data['other_phrases']
+
+            # Формируем данные карточки
+            card_data = {
+                'target_word': current_phrase[f"text_{user.target_language}"],
+                'translate_word': current_phrase[f"text_{user.ui_language}"],
+                'other_words': [p[f"text_{user.target_language}"] for p in other_phrases],
+                'phrase_id': current_phrase['id'],
+                'user_id': user.id
+            }
+
+            # Создаем варианты ответов
+            answer_buttons = self._generate_answer_options(
+                card_data['target_word'],
+                card_data['other_words']
+            )
+
+            # Добавляем основные кнопки
+            commands = self._init_commands(ui_lang=lang)
+            action_buttons = [
+                types.KeyboardButton(commands.NEXT),
+                types.KeyboardButton(commands.ADD_WORD),
+                types.KeyboardButton(commands.DELETE_WORD),
+                types.KeyboardButton(commands.MAIN_MENU)
+            ]
+
+            # Создаем клавиатуру
+            markup = self._create_learning_markup(
+                answer_buttons + action_buttons,
+                row_width=2
+            )
+
+            # Сохраняем данные в состоянии
+            with self.bot.retrieve_data(user_id, chat_id) as data:
+                data.update(card_data)
+
+            # Устанавливаем состояние обучения
+            self.bot.set_state(user_id, self.MyStates.learning_mode, chat_id)
+
+            # Отправляем карточку
+            self.bot.send_message(
+                chat_id,
+                f"{self.lang.get_text('select_translation', lang=lang)}\n{card_data['translate_word']}",
                 reply_markup=markup
             )
+
+        except Exception as e:
+            logger.error(f"Error in create_learning_card: {str(e)}")
+            self._send_error_message(message.chat.id)
 
     def select_lesson(self, message):
         cid = message.chat.id
@@ -262,161 +355,53 @@ class LanguageBot:
             )
             self.bot.set_state(message.from_user.id, self.MyStates.select_lesson, message.chat.id)
 
-    def handle_lesson_selection(self, message):
-        cid = message.chat.id
-        user_id = message.from_user.id
-        lang = self.get_user_lang(user_id)
-        text = message.text
-
-        if text == self.Command.MAIN_MENU:
-            self.show_main_menu(message)
-            return
-
+    def handle_lesson_selection(self, message: types.Message) -> None:
+        """Обрабатывает выбор урока пользователем"""
         try:
-            # Извлекаем ID урока из текста (формат "ID: Название")
-            lesson_id = int(text.split(':')[0].replace('✓', '').strip())
+            user_id = message.from_user.id
+            chat_id = message.chat.id
+            lang = self._get_user_lang_from_cache(user_id) or 'ru'
+            uid = self.crud.get_user_by_telegram_id(str(user_id))
 
-            with self.crud.Session() as session:
-                # Обновляем текущий урок пользователя
-                user = session.query(User).filter(User.telegram_id == str(cid)).first()
-                if user:
-                    user.current_lesson_id = lesson_id
-                    session.commit()
-
-                    # Получаем название урока для сообщения
-                    lesson = session.query(Lesson).filter(Lesson.id == lesson_id).first()
-                    lesson_title = lesson.title if lesson else f"{self.lang.get_text('unknown_lesson', lang=lang)}"
-
-                    self.bot.send_message(
-                        cid,
-                        f"{self.lang.get_text('lesson_selected', lang=lang)} {lesson_title}",
-                        reply_markup=self.get_main_menu_markup()
-                    )
-                else:
-                    self.bot.send_message(
-                        cid,
-                        f"{self.lang.get_text('user_not_found', lang=lang)}",
-                        reply_markup=self.get_main_menu_markup()
-                    )
-        except ValueError:
-            self.bot.send_message(
-                cid,
-                f"{self.lang.get_text('select_lesson_from_list', lang=lang)}",
-                reply_markup=self.get_main_menu_markup()
-            )
-
-    def create_cards(self, message):
-        """Создает карточки для изучения слов из текущего урока"""
-        cid = message.chat.id
-        user_id = message.from_user.id
-        lang = self.get_user_lang(user_id)
-        # Устанавливаем состояние перед началом
-        self.bot.set_state(user_id, self.MyStates.learning_mode, cid)
-
-        with self.crud.Session() as session:
-            user = session.query(User).filter(User.telegram_id == str(cid)).first()
-            if not user:
+            if message.text == self.Command.MAIN_MENU:
                 self.show_main_menu(message)
                 return
 
-            # user_words = session.query(UserWord).filter(UserWord.user_id == user.id).all()
-            #
-            # if not user_words:
-            #     self.bot.send_message(
-            #         cid,
-            #         "Ваш словарь пуст. Выберите урок или добавьте слова вручную.",
-            #         reply_markup=self.get_main_menu_markup()
-            #     )
-            #     return
+            try:
+                lesson_id = int(message.text.split(':')[0].replace('✓', '').strip())
+            except (ValueError, IndexError):
+                error_msg = self.lang.get_text('invalid_lesson_format', lang=lang)
+                self.bot.send_message(chat_id, error_msg)
+                return
 
-            # Получаем слова для изучения в зависимости от выбранного урока
-            if user.current_lesson_id:
-                # Берем только слова из текущего урока, которые есть у пользователя
-                user_words = session.query(UserWord) \
-                    .join(Phrase, UserWord.phrase_id == Phrase.id) \
-                    .filter(
-                    UserWord.user_id == user.id,
-                    Phrase.lesson_id == user.current_lesson_id
-                ) \
-                    .all()
-
-                if not user_words:
-                    self.bot.send_message(
-                        cid,
-                        f"{self.lang.get_text('no_words_in_lesson', lang=lang)}",
-                        reply_markup=self.get_main_menu_markup()
-                    )
-                    return
-            else:
-                # Берем все слова пользователя, если урок не выбран
-                user_words = session.query(UserWord) \
-                    .filter(UserWord.user_id == user.id) \
-                    .all()
-
-                if not user_words:
-                    self.bot.send_message(
-                        cid,
-                        f"{self.lang.get_text('empty_dictionary', lang=lang)}",
-                        reply_markup=self.get_main_menu_markup()
-                    )
-                    return
-
-            word_to_learn = random.choice(user_words)
-            phrase = session.query(Phrase).filter(Phrase.id == word_to_learn.phrase_id).first()
-
-            translate = getattr(phrase, f"text_{user.ui_language}")
-            target_word = getattr(phrase, f"text_{user.target_language}")
-
-            # other_phrases = session.query(Phrase) \
-            #     .filter(Phrase.id != phrase.id) \
-            #     .order_by(func.random()) \
-            #     .limit(3) \
-            #     .all()
-
-            # Получаем другие варианты ответов из того же набора слов
-            other_words = random.sample(
-                [uw for uw in user_words if uw.phrase_id != phrase.id],
-                min(3, len(user_words) - 1)
+            # Обновляем урок через CRUDOperations
+            result, error = self.crud.update_user_lesson(
+                telegram_id=str(user_id),
+                lesson_id=lesson_id
             )
-            other_phrases = session.query(Phrase) \
-                .filter(Phrase.id.in_([uw.phrase_id for uw in other_words])) \
-                .all()
 
-            others = [getattr(p, f"text_{user.target_language}") for p in other_phrases]
+            if error:
+                error_msg = self.lang.get_text('db_error', lang=lang) + f": {error}"
+                self.bot.send_message(chat_id, error_msg)
+                return
 
-        markup = types.ReplyKeyboardMarkup(row_width=2)
-        buttons = [types.KeyboardButton(target_word)]
-        buttons.extend([types.KeyboardButton(word) for word in others])
-        random.shuffle(buttons)
+            # Обновляем кэш
+            if user_id in self.user_cache:
+                self.user_cache[user_id]['current_lesson_id'] = lesson_id
 
-        # Добавляем основные кнопки
-        # TODO: переделать кнопки
-        buttons.extend([
-            types.KeyboardButton(self.Command.NEXT),
-            types.KeyboardButton(self.Command.ADD_WORD),
-            types.KeyboardButton(self.Command.DELETE_WORD),
-            types.KeyboardButton(self.Command.MAIN_MENU)
-        ])
+            # Формируем сообщение об успехе
+            success_msg = (
+                f"{self.lang.get_text('lesson_selected', lang=lang)}: "
+                f"{result.get('lesson_title', 'Unknown')}"
+            )
+            self.bot.send_message(chat_id, success_msg)
 
-        markup.add(*buttons)
-
-        with self.bot.retrieve_data(message.from_user.id, message.chat.id) as data:
-            data['target_word'] = target_word
-            data['translate_word'] = translate
-            data['other_words'] = others
-            data['phrase_id'] = phrase.id
-            data['user_id'] = user.id  #  ID пользователя
-
-        self.bot.send_message(
-            cid,
-            f"{self.lang.get_text('select_translation')}\n{translate}",
-            reply_markup=markup
-        )
-
+        except Exception as e:
+            logger.error(f"Error in handle_lesson_selection: {str(e)}")
+            self._send_error_message(message.from_user.id)
 
     def get_main_menu_markup(self):
         markup = types.ReplyKeyboardMarkup(row_width=2)
-        # TODO: переделать кнопки
         buttons = [
             types.KeyboardButton(self.Command.SELECT_LESSON),
             types.KeyboardButton(self.Command.SELECT_TARGET_LANG),
@@ -560,8 +545,9 @@ class LanguageBot:
         user_id = message.from_user.id
         text = message.text
 
-        current_state = self.bot.get_state(message.from_user.id, message.chat.id)
-        print(f"Current state: {current_state}")
+        current_state = self.bot.get_state(user_id, cid)
+        # print(f"Current state: {current_state}")
+        logger.debug(f"Current state: {current_state}")
 
         # Обработка выбора урока
         if current_state == self.MyStates.select_lesson.name:
@@ -683,48 +669,98 @@ class LanguageBot:
         if current_state != self.MyStates.learning_mode.name:
             self.show_main_menu(message)
             return
-        # Получаем данные
-        with self.bot.retrieve_data(message.from_user.id, message.chat.id) as data:
-            if not data:
-                self.bot.send_message(cid, "Сессия устарела, начинаем заново")
-                self.create_cards(message)
-                return
-            if 'target_word' not in data:
-                self.show_main_menu(message)
+        # Получаем данные состояния
+        with self.bot.retrieve_data(user_id, cid) as data:
+            if not data or 'phrase_id' not in data:
+                logger.warning("Сессия устарела")
+                self._recreate_learning_card(user_id, cid)
                 return
 
-            target_word = data['target_word']
-            markup = types.ReplyKeyboardMarkup(row_width=2)
+            target_word = data.get('target_word')
+            if not target_word:
+                self._recreate_learning_card(message, user_id, cid)
+                return
 
+            # Проверяем ответ пользователя
             if text == target_word:
-                # Обновляем прогресс изучения слова
-                with self.crud.Session() as session:
-                    user = session.query(User).filter(User.telegram_id == str(cid)).first()
-                    user_word = session.query(UserWord) \
-                        .filter(UserWord.user_id == user.id, UserWord.phrase_id == data['phrase_id']) \
-                        .first()
-
-                    if user_word:
-                        user_word.repetition_count += 1
-                        user_word.last_review = datetime.now(timezone.utc)
-                        session.commit()
-
-                hint = f"Правильно! ✅\n{target_word} -> {data['translate_word']}"
-                buttons = [
-                    types.KeyboardButton(self.Command.NEXT),
-                    types.KeyboardButton(self.Command.ADD_WORD),
-                    types.KeyboardButton(self.Command.DELETE_WORD),
-                    types.KeyboardButton(self.Command.MAIN_MENU)
-                ]
+                self._handle_correct_answer(user_id, cid, data)
             else:
-                hint = f"Неверно! ❌\nПравильный ответ: {data['translate_word']} -> {target_word}"
-                buttons = [
-                    types.KeyboardButton(self.Command.NEXT),
-                    types.KeyboardButton(self.Command.MAIN_MENU)
-                ]
+                self._handle_wrong_answer(user_id, cid, data)
 
-            markup.add(*buttons)
-            self.bot.send_message(cid, hint, reply_markup=markup)
+    # -
+    def _recreate_learning_card(self, message, user_id: int, chat_id: int):
+        """Создает новую карточку при устаревших данных"""
+        lang = self._get_user_lang_from_cache(user_id) or 'ru'
+        self.bot.send_message(chat_id,
+                              self.lang.get_text('session_restarted', lang=lang))
+        self.create_learning_card(message, chat_id, user_id)
+
+    def _handle_correct_answer(self, user_id: int, chat_id: int, data: dict):
+        """Обрабатывает правильный ответ"""
+        lang = self._get_user_lang_from_cache(user_id) or 'ru'
+
+        # Обновляем прогресс
+        success, error = self.crud.update_user_word_progress(
+            user_id=data['user_id'],
+            phrase_id=data['phrase_id']
+        )
+
+        if error:
+            logger.error(f"Failed to update progress: {error}")
+
+        # Формируем сообщение
+        hint = f"{self.lang.get_text('correct_answer', lang=lang)} ✅\n" \
+               f"{data['target_word']} -> {data['translate_word']}"
+
+        # Создаем клавиатуру с вариантами ответов и кнопками
+        answer_buttons = self._generate_answer_options(
+            data['target_word'],
+            data['other_words']
+        )
+        # Создаем клавиатуру 1
+        commands = self._init_commands(ui_lang=lang)
+        action_buttons = [
+            types.KeyboardButton(commands.NEXT),
+            types.KeyboardButton(commands.DELETE_WORD),
+            types.KeyboardButton(commands.MAIN_MENU)
+        ]
+
+        markup = self._create_learning_markup(
+            # answer_buttons + action_buttons,
+            action_buttons,
+            row_width=2
+        )
+
+        self.bot.send_message(chat_id, hint, reply_markup=markup)
+
+    def _handle_wrong_answer(self, user_id: int, chat_id: int, data: dict):
+        """Обрабатывает неправильный ответ"""
+        lang = self._get_user_lang_from_cache(user_id) or 'ru'
+        # Формируем сообщение
+        hint = f"{self.lang.get_text('wrong_answer', lang=lang)} ❌\n" \
+               f"{data['translate_word']} -> {data['target_word']}"
+
+        # Создаем клавиатуру 2
+        commands = self._init_commands(ui_lang=lang)
+        action_buttons = [
+            types.KeyboardButton(commands.NEXT),
+            types.KeyboardButton(commands.ADD_WORD),
+            types.KeyboardButton(commands.MAIN_MENU)
+        ]
+
+        markup = self._create_learning_markup(
+            action_buttons,
+            row_width=2
+        )
+
+        self.bot.send_message(chat_id, hint, reply_markup=markup)
+
+    def _generate_answer_options(self, target_word: str, other_words: List[str]) -> List[types.KeyboardButton]:
+        """Генерирует варианты ответов для клавиатуры"""
+        buttons = [types.KeyboardButton(target_word)]
+        buttons.extend([types.KeyboardButton(word) for word in other_words])
+        random.shuffle(buttons)
+        return buttons
 
     def get_user_lang(self, user_id):
         """Получаем язык пользователя из БД"""
@@ -732,18 +768,100 @@ class LanguageBot:
             user = session.query(User).filter(User.telegram_id == str(user_id)).first()
             return user.ui_language if user else 'ru'
 
+    # Вспомогательные методы
+    def _send_error_message(self, chat_id: int) -> None:
+        """Отправляет сообщение об ошибке пользователю"""
+        lang = self._get_user_lang_from_cache(chat_id) or 'ru'
+        error_msg = self.lang.get_text('error_occurred', lang=lang)
+        try:
+            self.bot.send_message(
+                chat_id,
+                error_msg,
+                reply_markup=self._get_main_menu_markup(lang)
+            )
+        except Exception as e:
+            logger.error(f"Failed to send error message: {str(e)}")
+
+    def _get_user_lang_from_cache(self, user_id: int) -> Optional[str]:
+        """Получает язык интерфейса пользователя из кэша"""
+        return self.user_cache.get(user_id, {}).get('ui_language')
+
+    def _get_main_menu_markup(self, lang: str) -> types.ReplyKeyboardMarkup:
+        """Создает клавиатуру главного меню для указанного языка"""
+        commands = self._init_commands(ui_lang=lang)
+        markup = types.ReplyKeyboardMarkup(row_width=2)
+
+        buttons = [
+            types.KeyboardButton(commands.SELECT_LESSON),
+            types.KeyboardButton(commands.SELECT_TARGET_LANG),
+            types.KeyboardButton(commands.SELECT_UI_LANG),
+            types.KeyboardButton(commands.ADD_WORD),
+            types.KeyboardButton(commands.NEXT)
+        ]
+
+        markup.add(*buttons)
+        return markup
+
+    def _create_learning_markup_v3(self, target_word: str, other_words: List[str],
+                                   lang: str) -> types.ReplyKeyboardMarkup:
+        """Создает клавиатуру для режима обучения"""
+        markup = types.ReplyKeyboardMarkup(row_width=2)
+
+        # Добавляем варианты ответов
+        buttons = [types.KeyboardButton(target_word)]
+        buttons.extend([types.KeyboardButton(word) for word in other_words])
+        random.shuffle(buttons)
+
+        # Добавляем основные кнопки
+        commands = self._init_commands(ui_lang=lang)
+        buttons.extend([
+            types.KeyboardButton(commands.NEXT),
+            types.KeyboardButton(commands.ADD_WORD),
+            types.KeyboardButton(commands.DELETE_WORD),
+            types.KeyboardButton(commands.MAIN_MENU)
+        ])
+
+        markup.add(*buttons)
+        return markup
+
+    def _create_learning_markup(self, buttons: List[types.KeyboardButton],
+                                row_width: int = 2) -> types.ReplyKeyboardMarkup:
+        """Создает клавиатуру из готовых кнопок"""
+        markup = types.ReplyKeyboardMarkup(row_width=row_width)
+        markup.add(*buttons)
+        return markup
+
+    def _format_welcome_message(self, user: User, stats: Dict) -> str:
+        """Формирует приветственное сообщение с информацией о пользователе"""
+        lang = user.ui_language
+        lines = [
+            self.lang.get_text('bot_welcome_msg', lang=lang),
+            "",
+            f"{self.lang.get_text('user_dict_size', lang=lang)}: {stats.get('word_count', 0)}",
+            f"{self.lang.get_text('learned_words', lang=lang)}: {stats.get('learned_words', 0)}",
+            f"{self.lang.get_text('target_language', lang=lang)}: {user.target_language}"
+        ]
+
+        if user.current_lesson_id:
+            lines.append(
+                f"{self.lang.get_text('current_lesson', lang=lang)}: {stats.get('current_lesson_title', 'Unknown')}"
+            )
+        else:
+            lines.append(self.lang.get_text('no_lesson_selected', lang=lang))
+
+        return "\n".join(lines)
 
     def run(self):
         print('Бот запущен...')
         self.bot.infinity_polling(skip_pending=True)
 
-# тест
+
 if __name__ == '__main__':
-    TOKEN = '****'
-    DB_URL = 'postgresql://postgres:****@localhost/lfl'
+    TOKEN = '***'
+    DB_URL = 'postgresql://postgres:***@localhost/lfl'
 
     bot = LanguageBot(TOKEN, DB_URL)
-    #bot.run()
+    # bot.run()
     # Запуск бота
     print(bot.start_bot())
 
@@ -751,5 +869,5 @@ if __name__ == '__main__':
     print(bot.get_bot_status())
 
     # Остановка бота через 60 секунд
-    #time.sleep(60)
-    #print(bot.stop_bot())
+    # time.sleep(60)
+    # print(bot.stop_bot())

@@ -1,7 +1,8 @@
 # Прямые отношения используются для записи и управления связями
 # Отношения через secondary таблицу  используются только для чтения (viewonly=True)
 # Параметр overlaps явно указывает SQLAlchemy, какие отношения пересекаются
-# можно упростить модели, оставив только один способ (например, только через secondary таблицу или только через прямые отношения)
+# можно упростить модели, оставив только один способ (например, только через secondary таблицу
+# или только через прямые отношения)
 
 from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, Boolean, DateTime
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
@@ -61,7 +62,7 @@ class Phrase(Base):
 
     # Дополнительная информация
     category = Column(String(50))  # Например: "быт", "работа", "путешествия"
-    usage_example = Column(String(500))  # Пример использования фразы
+    usage_example = Column(String(500))  # Пример использования
 
     # Связи
     lesson = relationship("Lesson", back_populates="phrases")
